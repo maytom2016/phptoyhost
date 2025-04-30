@@ -1,0 +1,82 @@
+name: Build Static Nginx (Linux amd64)
+
+on:
+  workflow_dispatch:  # 改为手动触发
+    inputs:
+      nginx_version:
+        description: 'Nginx version (e.g. 1.25.3)'
+        required: true
+        default: '1.25.3'
+      openssl_version:
+        description: 'OpenSSL version (e.g. 3.0.9)'
+        required: true
+        default: '3.0.9'
+      with_debug:
+        description: 'Build with debug symbols?'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build static Nginx
+    runs-on: ubuntu-latest
+    env:
+      PCRE_VERSION: 8.45
+      ZLIB_VERSION: 1.3
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          wget \
+          tar \
+          perl
+
+    - name: Download sources
+      run: |
+        wget https://nginx.org/download/nginx-${{ github.event.inputs.nginx_version }}.tar.gz
+        wget https://sourceforge.net/projects/pcre/files/pcre/${{ env.PCRE_VERSION }}/pcre-${{ env.PCRE_VERSION }}.tar.gz
+        wget https://zlib.net/zlib-${{ env.ZLIB_VERSION }}.tar.gz
+        wget https://www.openssl.org/source/openssl-${{ github.event.inputs.openssl_version }}.tar.gz
+
+        tar xzf nginx-${{ github.event.inputs.nginx_version }}.tar.gz
+        tar xzf pcre-${{ env.PCRE_VERSION }}.tar.gz
+        tar xzf zlib-${{ env.ZLIB_VERSION }}.tar.gz
+        tar xzf openssl-${{ github.event.inputs.openssl_version }}.tar.gz
+
+    - name: Configure and build
+      run: |
+        cd nginx-${{ github.event.inputs.nginx_version }}
+        ./configure \
+          --prefix=/usr/local/nginx \
+          --sbin-path=nginx \
+          --with-http_ssl_module \
+          --with-http_v2_module \
+          --with-threads \
+          --with-file-aio \
+          --with-http_realip_module \
+          --with-http_gzip_static_module \
+          --with-http_stub_status_module \
+          --with-pcre=../pcre-${{ env.PCRE_VERSION }} \
+          --with-zlib=../zlib-${{ env.ZLIB_VERSION }} \
+          --with-openssl=../openssl-${{ github.event.inputs.openssl_version }} \
+          --with-ld-opt="-static"
+
+        make -j$(nproc)
+        ${{ github.event.inputs.with_debug && '' || 'strip -s objs/nginx' }}
+
+    - name: Verify binary
+      run: |
+        file nginx-${{ github.event.inputs.nginx_version }}/objs/nginx
+        ! ldd nginx-${{ github.event.inputs.nginx_version }}/objs/nginx 2>&1 | grep "not a dynamic executable"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: nginx-static-${{ github.event.inputs.nginx_version }}
+        path: nginx-${{ github.event.inputs.nginx_version }}/objs/nginx
