@@ -73,7 +73,7 @@ jobs:
     - name: Verify binary
       run: |
         file nginx-${{ github.event.inputs.nginx_version }}/objs/nginx
-        ! ldd nginx-${{ github.event.inputs.nginx_version }}/objs/nginx 2>&1 | grep "not a dynamic executable"
+        ldd nginx-${{ github.event.inputs.nginx_version }}/objs/nginx 2>&1 | grep "not a dynamic executable"
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4  # 关键修复：从v3升级到v4
