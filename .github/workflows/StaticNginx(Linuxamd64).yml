@@ -1,7 +1,7 @@
 name: Build Static Nginx (Linux amd64)
 
 on:
-  workflow_dispatch:  # 改为手动触发
+  workflow_dispatch:
     inputs:
       nginx_version:
         description: 'Nginx version (e.g. 1.25.3)'
@@ -76,7 +76,7 @@ jobs:
         ! ldd nginx-${{ github.event.inputs.nginx_version }}/objs/nginx 2>&1 | grep "not a dynamic executable"
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # 关键修复：从v3升级到v4
       with:
         name: nginx-static-${{ github.event.inputs.nginx_version }}
         path: nginx-${{ github.event.inputs.nginx_version }}/objs/nginx
