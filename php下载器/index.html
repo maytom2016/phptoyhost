@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高级文件下载器</title>
+    <style>
+        :root {
+            --primary: #4285f4;
+            --danger: #ea4335;
+            --success: #34a853;
+            --warning: #fbbc05;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;  /* 加宽背景板 */
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;  /* 增加内边距 */
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #555;
+        }
+        input[type="text"], 
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 12px 15px;  /* 增加输入框高度 */
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: border 0.3s;
+            box-sizing: border-box;
+        }
+        input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-danger {
+            background: var(--danger);
+        }
+        .btn-success {
+            background: var(--success);
+        }
+        .progress-container {
+            margin-top: 35px;
+            display: none;
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+        .progress-bar {
+            height: 24px;
+            background: #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 18px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #5b9bf8);
+            width: 0%;
+            transition: width 0.3s ease, background 0.3s;
+        }
+        .progress-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 15px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .alert {
+            padding: 16px;
+            border-radius: 6px;
+            margin-top: 25px;
+            border-left: 5px solid transparent;
+            font-size: 15px;
+        }
+        .alert-info {
+            background: #e7f3fe;
+            border-color: var(--primary);
+        }
+        .alert-success {
+            background: #e6f7ee;
+            border-color: var(--success);
+        }
+        .alert-error {
+            background: #fdeaea;
+            border-color: var(--danger);
+        }
+        .control-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+        }
+        .speedometer {
+            font-size: 15px;
+            color: #666;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+        
+        /* 新增的文件列表样式 */
+        .file-list {
+            margin-top: 40px;
+            border-top: 1px solid #eee;
+            padding-top: 30px;
+        }
+        .file-list h2 {
+            color: #444;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+        .file-list table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .file-list th, .file-list td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        .file-list th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #555;
+        }
+        .file-list tr:hover {
+            background-color: #f5f7fa;
+        }
+        .file-download-btn {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .file-download-btn:hover {
+            background-color: #e7f3fe;
+        }
+        .file-size {
+            font-family: monospace;
+            color: #666;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            .container {
+                padding: 20px;
+            }
+            .control-group {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>高级文件下载器</h1>
+        
+        <div class="form-group">
+            <label for="fileUrl">下载URL:</label>
+            <input type="text" id="fileUrl" placeholder="https://example.com/file.zip" 
+                   value="https://xxx.com/1.tar.gz">
+        </div>
+        
+        <div class="form-group">
+            <label for="fileName">保存文件名:</label>
+            <input type="text" id="fileName" placeholder="自动从URL提取或输入文件名">
+        </div>
+        
+        <div class="form-group">
+            <label for="chunkSize">分片大小:</label>
+            <select id="chunkSize">
+                <option value="262144">256KB</option>
+                <option value="524288">512KB</option>
+                <option value="1048576" selected>1MB</option>
+                <option value="2097152">2MB</option>
+                <option value="5242880">5MB</option>
+                <option value="10485760">10MB</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <button id="startBtn" class="btn">开始下载</button>
+            <button id="pauseBtn" class="btn btn-danger" disabled>暂停</button>
+            <button id="resumeBtn" class="btn btn-success" disabled>继续</button>
+        </div>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-header">
+                <span style="font-weight: 600;">下载进度</span>
+                <span id="percentage" style="font-weight: 600;">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+            <div class="progress-details">
+                <span id="downloaded">0 B</span>
+                <span id="totalSize">0 B</span>
+            </div>
+            <div class="speedometer">
+                速度: <span id="speedText">0 KB/s</span>
+            </div>
+        </div>
+        
+        <div class="alert" id="statusMessage">
+            准备就绪，请输入下载URL
+        </div>
+    </div>
+    
+    <!-- 新增的文件列表部分 -->
+    <div class="container file-list">
+        <h2>已下载文件</h2>
+        <table id="downloadsTable">
+            <thead>
+                <tr>
+                    <th>文件名</th>
+                    <th>大小</th>
+                    <th>修改时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="fileListBody">
+                <!-- 文件列表将通过JavaScript动态加载 -->
+                <tr>
+                    <td colspan="4" style="text-align: center;">加载中...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // 格式化字节大小
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+        }
+
+        // 从URL提取文件名
+        function extractFilenameFromUrl(url) {
+            if (!url) return '';
+            
+            try {
+                // 处理包含查询参数的URL
+                const urlObj = new URL(url);
+                const pathname = urlObj.pathname;
+                const filename = pathname.split('/').pop();
+                
+                // 移除可能存在的查询字符串
+                return filename.split('?')[0].split('#')[0];
+            } catch (e) {
+                // 如果不是合法URL，尝试直接提取
+                const parts = url.split('/');
+                let filename = parts.pop() || parts.pop();
+                return filename.split('?')[0].split('#')[0];
+            }
+        }
+
+        // 加载已下载文件列表
+        async function loadDownloadedFiles() {
+            try {
+                const response = await fetch('api.php?action=list');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('fileListBody');
+                tbody.innerHTML = '';
+                
+                if (data.success && data.files.length > 0) {
+                    data.files.forEach(file => {
+                        const row = document.createElement('tr');
+                        
+                        row.innerHTML = `
+                            <td>${file.name}</td>
+                            <td class="file-size">${formatBytes(file.size)}</td>
+                            <td>${new Date(file.mtime * 1000).toLocaleString()}</td>
+                            <td>
+                                <a href="downloads/${encodeURIComponent(file.name)}" 
+                                   class="file-download-btn" download>下载</a>
+                            </td>
+                        `;
+                        
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" style="text-align: center;">暂无已下载文件</td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                console.error('加载文件列表失败:', error);
+                document.getElementById('fileListBody').innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--danger);">
+                            加载文件列表失败: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileUrl = document.getElementById('fileUrl');
+            const fileName = document.getElementById('fileName');
+            const chunkSize = document.getElementById('chunkSize');
+            const startBtn = document.getElementById('startBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const resumeBtn = document.getElementById('resumeBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const percentageText = document.getElementById('percentage');
+            const downloadedText = document.getElementById('downloaded');
+            const totalSizeText = document.getElementById('totalSize');
+            const speedText = document.getElementById('speedText');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            let downloadController = null;
+            let isPaused = false;
+            let lastLoaded = 0;
+            let lastTime = 0;
+            let speedInterval = null;
+            let totalSize = 0;
+            
+            // URL输入变化时自动填充文件名
+            fileUrl.addEventListener('change', function() {
+                if (!fileName.value) {
+                    const extractedName = extractFilenameFromUrl(fileUrl.value);
+                    if (extractedName) {
+                        fileName.value = extractedName;
+                    }
+                }
+            });
+            
+            // 更新状态消息
+            function updateStatus(message, type = 'info') {
+                statusMessage.textContent = message;
+                statusMessage.className = `alert alert-${type}`;
+            }
+            
+            
+            // 获取文件信息
+            async function getFileInfo() {
+                try {
+                    updateStatus('正在获取文件信息...', 'info');
+                    
+                    const response = await fetch('api.php?action=fileinfo', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `url=${encodeURIComponent(fileUrl.value)}`
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        throw new Error(data.error || '获取文件信息失败');
+                    }
+                    
+                    totalSize = parseInt(data.data.size);
+                    if (!totalSize || totalSize <= 0) {
+                        throw new Error('无法获取文件大小或文件大小为0');
+                    }
+                    
+                    updateStatus(`文件大小: ${formatBytes(totalSize)} | ${data.data.resumable ? '支持' : '不支持'}断点续传`, 'info');
+                    return data.data;
+                    
+                } catch (error) {
+                    console.error('Error:', error);
+                    updateStatus(`错误: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+            
+            // 开始下载
+            startBtn.addEventListener('click', async function() {
+                if (!fileUrl.value) {
+                    updateStatus('请输入有效的文件URL', 'error');
+                    return;
+                }
+                
+                try {
+                    progressContainer.style.display = 'block';
+                    startBtn.disabled = true;
+                    pauseBtn.disabled = false;
+                    resumeBtn.disabled = true;
+                    isPaused = false;
+                    
+                    // 获取文件信息
+                    await getFileInfo();
+                    
+                    // 开始下载
+                    downloadController = new AbortController();
+                    updateStatus('开始下载...', 'info');
+                    
+                    // 重置进度
+                    progressBar.style.width = '0%';
+                    percentageText.textContent = '0%';
+                    downloadedText.textContent = '0 B';
+                    totalSizeText.textContent = formatBytes(totalSize);
+                    lastLoaded = 0;
+                    lastTime = Date.now();
+                    
+                    // 启动速度计算
+                    startProgressTracker();
+                    
+                    // 发送下载请求
+                    const response = await fetch('api.php?action=download', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `url=${encodeURIComponent(fileUrl.value)}&filename=${encodeURIComponent(fileName.value)}&chunkSize=${chunkSize.value}`,
+                        signal: downloadController.signal
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        throw new Error(result.error || '下载失败');
+                    }
+                    
+                    // 下载完成
+                    clearInterval(speedInterval);
+                    updateStatus('下载完成!', 'success');
+                    startBtn.disabled = false;
+                    pauseBtn.disabled = true;
+                    resumeBtn.disabled = true;
+                    
+                    // 刷新文件列表
+                    loadDownloadedFiles();
+                    
+                    // 获取最终进度
+                    // checkProgress();
+                    
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('下载错误:', error);
+                        updateStatus(`下载错误: ${error.message}`, 'error');
+                    }
+                    startBtn.disabled = false;
+                    pauseBtn.disabled = true;
+                    resumeBtn.disabled = !isPaused;
+                     // 失败时清理临时文件
+                    try {
+                        await fetch('api.php?action=clean');
+                    } catch (cleanError) {
+                        console.error('清理临时文件失败:', cleanError);
+                    }
+                }
+            });
+            
+            // 暂停下载
+            pauseBtn.addEventListener('click', function() {
+                if (downloadController) {
+                    downloadController.abort();
+                    isPaused = true;
+                    pauseBtn.disabled = true;
+                    resumeBtn.disabled = false;
+                    updateStatus('下载已暂停', 'info');
+                    clearInterval(speedInterval);
+                }
+            });
+            
+            // 继续下载
+            resumeBtn.addEventListener('click', function() {
+                isPaused = false;
+                pauseBtn.disabled = false;
+                resumeBtn.disabled = true;
+                updateStatus('继续下载...', 'info');
+                lastTime = Date.now(); // 重置计时
+                speedInterval = setInterval(() => {
+                    updateSpeed(lastLoaded);
+                }, 1000);
+                startDownload(); // 需要实现继续逻辑
+            });
+            
+            // 检查进度
+            async function checkProgress() {
+                try {
+                    const response = await fetch('api.php?action=progress');
+                    const progress = await response.json();
+                    
+                    const percent = progress.percentage;
+                    progressBar.style.width = `${percent}%`;
+                    percentageText.textContent = `${percent}%`;
+                    downloadedText.textContent = formatBytes(progress.downloaded);
+                    
+                    if (percent < 100) {
+                        setTimeout(checkProgress, 1000);
+                    }
+                } catch (error) {
+                    console.error('进度检查错误:', error);
+                }
+            }
+            //秒更新进度
+            async function startProgressTracker() {
+                let lastBytes = 0;
+                let lastTime = Date.now();
+                let speed = 0;
+                
+                async function updateProgress() {
+                    try {
+                        const response = await fetch('api.php?action=progress');
+                        const progress = await response.json();
+                        
+                        // 计算实时速度
+                        const now = Date.now();
+                        const timeDiff = (now - lastTime) / 1000; // 秒
+                        const bytesDiff = progress.downloaded - lastBytes;
+                        
+                        if (timeDiff > 0) {
+                            speed = bytesDiff / timeDiff; // 字节/秒
+                            lastBytes = progress.downloaded;
+                            lastTime = now;
+                        }
+                        
+                        // 更新UI
+                        const percent = progress.percentage;
+                        progressBar.style.width = `${percent}%`;
+                        percentageText.textContent = `${percent}%`;
+                        downloadedText.textContent = formatBytes(progress.downloaded);
+                        totalSizeText.textContent = formatBytes(progress.total);
+                        speedText.textContent = formatBytes(speed) + '/s';
+                        
+                        // 更新状态消息
+                        if (percent < 100) {
+                            updateStatus(`下载中: ${percent}% (${formatBytes(speed)}/s)`, 'info');
+                            setTimeout(updateProgress, 1000); // 每秒更新一次
+                        }
+                    } catch (error) {
+                        console.error('进度更新错误:', error);
+                        setTimeout(updateProgress, 3000); // 出错时3秒后重试
+                    }
+                }
+                
+                // 重置计数
+                lastBytes = 0;
+                lastTime = Date.now();
+                speed = 0;
+                
+                // 开始跟踪
+                updateProgress();
+            }
+            // 初始化加载文件列表
+            loadDownloadedFiles();
+            
+            // 初始化进度检查
+            // checkProgress();
+        });
+    </script>
+</body>
+</html>
