@@ -20,11 +20,21 @@ jobs:
       - name: Install musl-cross toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools
+          sudo apt-get install -y musl-tools automake libtool
           wget https://musl.cc/arm-linux-musleabihf-cross.tgz
           tar -xzf arm-linux-musleabihf-cross.tgz -C /opt
           echo "/opt/arm-linux-musleabihf-cross/bin" >> $GITHUB_PATH
 
+      - name: Build Netcat (from bugwz/netcat)
+        run: |
+          git clone https://github.com/bugwz/netcat.git
+          cd netcat
+          # 修复可能的编译问题
+          sed -i 's/gcc/arm-linux-musleabihf-gcc/g' Makefile
+          sed -i 's/CFLAGS=/CFLAGS= -static /g' Makefile
+          make -j$(nproc)
+          arm-linux-musleabihf-strip nc
+          
       - name: Build BusyBox
         run: |
           wget https://busybox.net/downloads/busybox-1.36.1.tar.bz2
@@ -44,15 +54,6 @@ jobs:
           make -j$(nproc) PROGRAMS="dropbear dbclient dropbearkey"
           arm-linux-musleabihf-strip dropbear dbclient dropbearkey
 
-      - name: Build GNU Netcat (Linux原生版本)
-        run: |
-          git clone https://github.com/dcantrell/netcat.git
-          cd nc
-          ./autogen.sh
-          ./configure --host=arm-linux-musleabihf --enable-static --disable-shared
-          make -j$(nproc)
-          arm-linux-musleabihf-strip src/nc
-
       - name: Package binaries
         run: |
           mkdir -p release/bin
@@ -60,7 +61,7 @@ jobs:
           cp dropbear-2022.83/dropbear release/bin/
           cp dropbear-2022.83/dbclient release/bin/
           cp dropbear-2022.83/dropbearkey release/bin/
-          cp nc/src/nc release/bin/
+          cp netcat/nc release/bin/
           tar -czvf armv7l-static-tools.tar.gz -C release .
 
       - name: Upload Release
