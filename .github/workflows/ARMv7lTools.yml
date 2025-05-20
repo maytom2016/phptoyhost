@@ -1,51 +1,51 @@
-name: Build for ARMv7 Musl
+name: Build BusyBox & Dropbear
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up environment
-      run: |
-        sudo apt-get update && sudo apt-get install -y \
-          make gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
-          libncurses-dev libssl-dev
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential musl-tools git wget
 
-    - name: Get BusyBox source
-      run: git clone https://git.busybox.net/busybox busybox
+      - name: Set up cross compiler
+        run: |
+          wget https://musl.cc/arm-linux-musleabi-cross.tgz
+          tar xzf arm-linux-musleabi-cross.tgz
+          echo "$(pwd)/arm-linux-musleabi-cross/bin" >> $GITHUB_PATH
 
-    - name: Build BusyBox
-      working-directory: busybox
-      run: |
-        sed -i 's/^# CONFIG_STATIC is not set/CONFIG_STATIC=y/' .config
-        make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- defconfig
-        make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf-
+      - name: Build BusyBox
+        run: |
+          git clone https://git.busybox.net/busybox
+          cd busybox
+          make defconfig
+          sed -i 's/^CONFIG_STATIC[^=]*=.*/CONFIG_STATIC=y/' .config
+          make ARCH=arm CROSS_COMPILE=arm-linux-musleabi- -j$(nproc)
+          cp busybox ../busybox-armv7
 
-    - name: Get dropbear source
-      run: git clone https://github.com/mkj/dropbear.git dropbear
+      - name: Build Dropbear
+        run: |
+          git clone https://github.com/mkj/dropbear
+          cd dropbear
+          ./configure --host=arm-linux-musleabi --enable-static
+          make PROGRAMS="dropbear dbclient dropbearkey dropbearconvert scp" -j$(nproc)
+          cp dropbear ../dropbear-armv7
 
-    - name: Build dropbear
-      working-directory: dropbear
-      run: |
-        ./configure --host=arm-linux-gnueabihf --disable-zlib --disable-pam --disable-shadow --disable-syslog
-        make PROGRAMS="dropbear dbclient scp" MULTI=1 CROSS_COMPILE=arm-linux-gnueabihf-
-
-    - name: Package binaries
-      run: |
-        tar czf armv7-musl-busybox-dropbear.tar.gz busybox/dropbear/dropbear busybox/dropbear/dbclient busybox/dropbear/scp busybox/busybox
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: armv7-musl-busybox-dropbear
-        path: armv7-musl-busybox-dropbear.tar.gz
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-binaries
+          path: |
+            busybox-armv7
+            dropbear-armv7
