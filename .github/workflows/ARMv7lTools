@@ -1,0 +1,70 @@
+name: Build Static ARMv7l Tools (musl)
+
+on:
+  push:
+    tags:
+      - 'v*'  # 触发条件：推送 tag（如 v1.0.0）
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for ARM emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Install musl-cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          wget https://musl.cc/arm-linux-musleabihf-cross.tgz
+          tar -xzf arm-linux-musleabihf-cross.tgz -C /opt
+          echo "/opt/arm-linux-musleabihf-cross/bin" >> $GITHUB_PATH
+
+      - name: Build BusyBox
+        run: |
+          wget https://busybox.net/downloads/busybox-1.36.1.tar.bz2
+          tar -xf busybox-1.36.1.tar.bz2
+          cd busybox-1.36.1
+          make defconfig
+          sed -i 's/^CONFIG_STATIC=.*/CONFIG_STATIC=y/' .config
+          make -j$(nproc) CC="arm-linux-musleabihf-gcc" ARCH=arm CROSS_COMPILE=arm-linux-musleabihf-
+          arm-linux-musleabihf-strip busybox
+
+      - name: Build Dropbear
+        run: |
+          wget https://matt.ucc.asn.au/dropbear/releases/dropbear-2022.83.tar.bz2
+          tar -xf dropbear-2022.83.tar.bz2
+          cd dropbear-2022.83
+          ./configure --host=arm-linux-musleabihf --enable-static --disable-zlib
+          make -j$(nproc) PROGRAMS="dropbear dbclient dropbearkey"
+          arm-linux-musleabihf-strip dropbear dbclient dropbearkey
+
+      - name: Build Netcat (OpenBSD variant)
+        run: |
+          git clone https://github.com/openbsd/src.git
+          cd src/usr.bin/nc
+          make CC="arm-linux-musleabihf-gcc" CFLAGS="-static" LDFLAGS="-static"
+          arm-linux-musleabihf-strip nc
+
+      - name: Package binaries
+        run: |
+          mkdir -p release/bin
+          cp busybox-1.36.1/busybox release/bin/
+          cp dropbear-2022.83/dropbear release/bin/
+          cp dropbear-2022.83/dbclient release/bin/
+          cp dropbear-2022.83/dropbearkey release/bin/
+          cp src/usr.bin/nc/nc release/bin/
+          tar -czvf armv7l-static-tools.tar.gz -C release .
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            armv7l-static-tools.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
