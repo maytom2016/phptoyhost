@@ -32,7 +32,7 @@ jobs:
           cd busybox-1.36.1
           make defconfig
           sed -i 's/^CONFIG_STATIC=.*/CONFIG_STATIC=y/' .config
-          make -j$(nproc) CC="arm-linux-musleabihf-gcc" ARCH=arm CROSS_COMPILE=arm-linux-musleabihf- CFLAGS="-march=armv7-a -mfloat-abi=hard -mfpu=vfpv3-d16"
+          make -j$(nproc) CC="arm-linux-musleabihf-gcc" ARCH=arm CROSS_COMPILE=arm-linux-musleabihf- CFLAGS="-march=armv7-a -mfloat-abi=hard"
           arm-linux-musleabihf-strip busybox
 
       - name: Build Dropbear
@@ -40,7 +40,7 @@ jobs:
           wget https://matt.ucc.asn.au/dropbear/releases/dropbear-2022.83.tar.bz2
           tar -xf dropbear-2022.83.tar.bz2
           cd dropbear-2022.83
-          ./configure --host=arm-linux-musleabihf --enable-static --disable-zlib CFLAGS="-march=armv7-a -mfloat-abi=hard -mfpu=vfpv3-d16"
+          ./configure --host=arm-linux-musleabihf --enable-static --disable-zlib CFLAGS="-march=armv7-a -mfloat-abi=hard"
           make -j$(nproc) PROGRAMS="dropbear dbclient dropbearkey"
           arm-linux-musleabihf-strip dropbear dbclient dropbearkey
 
