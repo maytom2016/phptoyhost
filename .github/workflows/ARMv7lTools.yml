@@ -25,30 +25,6 @@ jobs:
           tar -xzf arm-linux-musleabihf-cross.tgz -C /opt
           echo "/opt/arm-linux-musleabihf-cross/bin" >> $GITHUB_PATH
 
-      - name: Build Ncat (from Nmap)
-        run: |
-          # 安装 Ncat 依赖
-          sudo apt-get install -y libpcap-dev libssl-dev
-          # 下载 Nmap 源码（包含 Ncat）
-          wget https://nmap.org/dist/nmap-7.94.tar.bz2
-          tar -xf nmap-7.94.tar.bz2
-          cd nmap-7.94
-          # 配置静态编译
-          ./configure \
-            --host=arm-linux-musleabihf \
-            --enable-static \
-            --without-ndiff \
-            --without-zenmap \
-            --without-nmap-update \
-            --with-pcap=linux \
-            CC="arm-linux-musleabihf-gcc" \
-            CXX="arm-linux-musleabihf-g++" \
-            CFLAGS="-static -Os" \
-            LDFLAGS="-static"
-          # 编译 Ncat
-          make -j$(nproc) ncat
-          arm-linux-musleabihf-strip ncat/ncat
-
       - name: Build BusyBox
         run: |
           wget https://busybox.net/downloads/busybox-1.36.1.tar.bz2
@@ -71,17 +47,14 @@ jobs:
       - name: Package binaries
         run: |
           mkdir -p release/bin
-          cp nmap-7.94/ncat/ncat release/bin/
           cp busybox-1.36.1/busybox release/bin/
           cp dropbear-2022.83/dropbear release/bin/
           cp dropbear-2022.83/dbclient release/bin/
           cp dropbear-2022.83/dropbearkey release/bin/
           tar -czvf armv7l-static-tools.tar.gz -C release .
 
-      - name: Upload Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: |
-            armv7l-static-tools.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: armv7l-static-tools
+          path: armv7l-static-tools.tar.gz
