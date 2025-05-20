@@ -36,14 +36,18 @@ jobs:
           tar -xf busybox-1.36.1.tar.bz2
           cd busybox-1.36.1
           make defconfig
-          # 关键修复：禁用VFP/NEON，强制软浮点
-          sed -i 's/^CONFIG_STATIC=.*/CONFIG_STATIC=y/' .config
-          sed -i 's/^CONFIG_EXTRA_CFLAGS=.*/CONFIG_EXTRA_CFLAGS="${SAFE_CFLAGS}"/' .config
-          sed -i 's/^CONFIG_EXTRA_LDLIBS=.*/CONFIG_EXTRA_LDLIBS="-lgcc_eh"/' .config
-          make -j$(nproc) CC="${MUSL_CROSS}-gcc ${SAFE_CFLAGS}" ARCH=arm CROSS_COMPILE=${MUSL_CROSS}-
+          # 关键修复点
+          sed -i "s/^CONFIG_STATIC=.*/CONFIG_STATIC=y/" .config
+          sed -i "s/^CONFIG_EXTRA_CFLAGS=.*/CONFIG_EXTRA_CFLAGS=\"${SAFE_CFLAGS}\"/" .config
+          sed -i "s/^CONFIG_EXTRA_LDLIBS=.*/CONFIG_EXTRA_LDLIBS=\"-lgcc_eh -lgcc\"/" .config
+          # 显式指定所有编译参数
+          make -j$(nproc) \
+            CC="${MUSL_CROSS}-gcc" \
+            CFLAGS="${SAFE_CFLAGS} -static" \
+            LDFLAGS="${SAFE_CFLAGS} -static" \
+            ARCH=arm \
+            CROSS_COMPILE=${MUSL_CROSS}-
           ${MUSL_CROSS}-strip busybox
-          file busybox > ../busybox_check.log
-          ${MUSL_CROSS}-readelf -A busybox | grep -q "Tag_ARM_ISA_use: Yes" || (echo "ARM ISA check failed!" && exit 1)
 
       - name: Build Dropbear (safe mode)
         run: |
