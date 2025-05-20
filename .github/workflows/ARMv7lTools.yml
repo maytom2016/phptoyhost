@@ -1,10 +1,15 @@
-name: Build Static ARMv7l Tools (musl)
+name: Build Static ARMv7l Tools (safe)
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+
+env:
+  TARGET_ARCH: armv7l
+  MUSL_CROSS: arm-linux-musleabihf
+  SAFE_CFLAGS: "-march=armv7-a -mno-unaligned-access -mfloat-abi=soft -mtune=generic-armv7-a"
 
 jobs:
   build:
@@ -14,47 +19,87 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU (for ARM emulation)
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: Install musl-cross toolchain
+      - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools automake libtool
-          wget https://musl.cc/arm-linux-musleabihf-cross.tgz
-          tar -xzf arm-linux-musleabihf-cross.tgz -C /opt
-          echo "/opt/arm-linux-musleabihf-cross/bin" >> $GITHUB_PATH
+          sudo apt-get install -y musl-tools file
+          wget https://musl.cc/${MUSL_CROSS}-cross.tgz
+          tar -xzf ${MUSL_CROSS}-cross.tgz -C /opt
+          echo "/opt/${MUSL_CROSS}-cross/bin" >> $GITHUB_PATH
 
-      - name: Build BusyBox
+      - name: Build BusyBox (safe mode)
         run: |
           wget https://busybox.net/downloads/busybox-1.36.1.tar.bz2
           tar -xf busybox-1.36.1.tar.bz2
           cd busybox-1.36.1
           make defconfig
+          # 关键修复：禁用VFP/NEON，强制软浮点
           sed -i 's/^CONFIG_STATIC=.*/CONFIG_STATIC=y/' .config
-          make -j$(nproc) CC="arm-linux-musleabihf-gcc" ARCH=arm CROSS_COMPILE=arm-linux-musleabihf- CFLAGS="-march=armv7-a -mfloat-abi=soft" LDFLAGS="-march=armv7-a -mfloat-abi=soft"
-          arm-linux-musleabihf-strip busybox
+          sed -i 's/^CONFIG_EXTRA_CFLAGS=.*/CONFIG_EXTRA_CFLAGS="${SAFE_CFLAGS}"/' .config
+          sed -i 's/^CONFIG_EXTRA_LDLIBS=.*/CONFIG_EXTRA_LDLIBS="-lgcc_eh"/' .config
+          make -j$(nproc) CC="${MUSL_CROSS}-gcc ${SAFE_CFLAGS}" ARCH=arm CROSS_COMPILE=${MUSL_CROSS}-
+          ${MUSL_CROSS}-strip busybox
+          file busybox > ../busybox_check.log
+          ${MUSL_CROSS}-readelf -A busybox | grep -q "Tag_ARM_ISA_use: Yes" || (echo "ARM ISA check failed!" && exit 1)
 
-      - name: Build Dropbear
+      - name: Build Dropbear (safe mode)
         run: |
           wget https://matt.ucc.asn.au/dropbear/releases/dropbear-2022.83.tar.bz2
           tar -xf dropbear-2022.83.tar.bz2
           cd dropbear-2022.83
-          ./configure --host=arm-linux-musleabihf --enable-static --disable-zlib CFLAGS="-march=armv7-a -mfloat-abi=soft" LDFLAGS="-march=armv7-a -mfloat-abi=soft"
+          ./configure \
+            --host=${MUSL_CROSS} \
+            --enable-static \
+            --disable-zlib \
+            CFLAGS="${SAFE_CFLAGS} -static" \
+            LDFLAGS="-static"
           make -j$(nproc) PROGRAMS="dropbear dbclient dropbearkey"
-          arm-linux-musleabihf-strip dropbear dbclient dropbearkey
+          ${MUSL_CROSS}-strip dropbear dbclient dropbearkey
+          file dropbear > ../dropbear_check.log
+          file dbclient >> ../dropbear_check.log
+          file dropbearkey >> ../dropbear_check.log
 
-      - name: Package binaries
+      - name: Verify binaries
+        run: |
+          echo "=== Binary Compatibility Report ===" > xx_check.log
+          echo "Target Platform: ARMv7 (no VFP/NEON)" >> xx_check.log
+          echo "Compiler Flags: ${SAFE_CFLAGS}" >> xx_check.log
+          cat /proc/cpuinfo >> xx_check.log
+          echo "--- BusyBox ---" >> xx_check.log
+          cat busybox_check.log >> xx_check.log
+          echo "--- Dropbear ---" >> xx_check.log
+          cat dropbear_check.log >> xx_check.log
+          echo "================================" >> xx_check.log
+          # 严格检查
+          ! grep -q "VFP" xx_check.log || (echo "VFP detected in binaries!" && exit 1)
+          grep -q "statically linked" xx_check.log || (echo "Static linking check failed!" && exit 1)
+
+      - name: Package artifacts
         run: |
           mkdir -p release/bin
           cp busybox-1.36.1/busybox release/bin/
           cp dropbear-2022.83/dropbear release/bin/
           cp dropbear-2022.83/dbclient release/bin/
           cp dropbear-2022.83/dropbearkey release/bin/
-          tar -czvf armv7l-static-tools.tar.gz -C release .
+          tar -czvf ${TARGET_ARCH}-safe-tools.tar.gz -C release .
 
-      - name: Upload Artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: armv7l-static-tools
-          path: armv7l-static-tools.tar.gz
+          name: ${TARGET_ARCH}-artifacts
+          path: |
+            ${TARGET_ARCH}-safe-tools.tar.gz
+            xx_check.log
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${TARGET_ARCH}-safe-tools.tar.gz
+            xx_check.log
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
