@@ -46,7 +46,7 @@ jobs:
 
       - name: Build GNU Netcat (Linux原生版本)
         run: |
-          git clone https://github.com/dcantrell/nc.git
+          git clone https://github.com/dcantrell/netcat.git
           cd nc
           ./autogen.sh
           ./configure --host=arm-linux-musleabihf --enable-static --disable-shared
