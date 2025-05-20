@@ -54,7 +54,7 @@ jobs:
           tar -czvf armv7l-static-tools.tar.gz -C release .
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: armv7l-static-tools
           path: armv7l-static-tools.tar.gz
