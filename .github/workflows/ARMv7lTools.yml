@@ -49,54 +49,6 @@ jobs:
             CROSS_COMPILE=${MUSL_CROSS}-
           ${MUSL_CROSS}-strip busybox
 
-      - name: Build Dropbear (safe mode)
-        run: |
-          wget https://matt.ucc.asn.au/dropbear/releases/dropbear-2022.83.tar.bz2
-          tar -xf dropbear-2022.83.tar.bz2
-          cd dropbear-2022.83
-          
-          # 修复1：应用综合补丁
-          sed -i 's/char \*basename(const char\* path);/char *basename(char *path) __attribute__((__nonnull__ (1)));/g' compat.h
-          sed -i 's/#if DROPBEAR_SVR_PASSWORD_AUTH && !HAVE_CRYPT/#if 0/' sysoptions.h
-          
-          # 修复2：强制禁用共享库和动态链接
-          export CC="${MUSL_CROSS}-gcc"
-          export CFLAGS="${SAFE_CFLAGS} -static -ffunction-sections -fdata-sections"
-          export LDFLAGS="-static -Wl,--gc-sections -Wl,--as-needed -Wl,--strip-all"
-          
-          # 修复3：完整配置参数
-          ./configure \
-            --host=${MUSL_CROSS} \
-            --enable-static \
-            --disable-shared \
-            --disable-zlib \
-            --disable-pam \
-            --disable-syslog \
-            --disable-lastlog \
-            --disable-utmp \
-            --disable-utmpx \
-            --disable-wtmp \
-            --disable-wtmpx \
-            --disable-shadow \
-            --disable-password-auth \
-            --disable-openpty \
-            --disable-loginfunc \
-            --disable-pututline \
-            --disable-pututxline
-
-          # 修复4：强制重建并显示详细日志
-          make clean
-          make -j$(nproc) \
-            PROGRAMS="dropbear dbclient dropbearkey" \
-            CC="$CC" \
-            CFLAGS="$CFLAGS" \
-            LDFLAGS="$LDFLAGS" \
-            STRIP="${MUSL_CROSS}-strip" \
-            V=1  # 启用详细输出
-
-          # 严格验证
-          ${MUSL_CROSS}-readelf -A dropbear | grep -q 'Tag_VFP_arch: None' || (echo "VFP detected"; exit 1)
-          ! ${MUSL_CROSS}-nm dropbear | grep -qw 'crypt' || (echo "Unexpected crypt dependency"; exit 1)
 
       - name: Verify binaries
         run: |
@@ -106,8 +58,6 @@ jobs:
           cat /proc/cpuinfo >> xx_check.log
           echo "--- BusyBox ---" >> xx_check.log
           cat busybox_check.log >> xx_check.log
-          echo "--- Dropbear ---" >> xx_check.log
-          cat dropbear_check.log >> xx_check.log
           echo "================================" >> xx_check.log
           # 严格检查
           ! grep -q "VFP" xx_check.log || (echo "VFP detected in binaries!" && exit 1)
@@ -117,9 +67,6 @@ jobs:
         run: |
           mkdir -p release/bin
           cp busybox-1.36.1/busybox release/bin/
-          cp dropbear-2022.83/dropbear release/bin/
-          cp dropbear-2022.83/dbclient release/bin/
-          cp dropbear-2022.83/dropbearkey release/bin/
           tar -czvf ${TARGET_ARCH}-safe-tools.tar.gz -C release .
 
       - name: Upload artifacts
