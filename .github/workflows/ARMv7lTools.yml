@@ -35,13 +35,22 @@ jobs:
           make ARCH=arm CROSS_COMPILE=arm-linux-musleabi- -j$(nproc)
           cp busybox ../busybox-armv7
 
-      - name: Build Dropbear
+      - name: Validate BusyBox
+        run: |
+          file busybox-armv7
+
+      - name: Build Dropbear & Utilities
         run: |
           git clone https://github.com/mkj/dropbear
           cd dropbear
           ./configure --host=arm-linux-musleabi --disable-zlib --enable-static
           make PROGRAMS="dropbear dbclient dropbearkey dropbearconvert scp" -j$(nproc)
-          cp dropbear ../dropbear-armv7
+          mkdir -p ../dropbear-armv7
+          cp dropbear dbclient dropbearkey dropbearconvert scp ../dropbear-armv7/
+
+      - name: Validate Dropbear Tools
+        run: |
+          file dropbear-armv7/*
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -49,4 +58,4 @@ jobs:
           name: compiled-binaries
           path: |
             busybox-armv7
-            dropbear-armv7
+            dropbear-armv7/*
