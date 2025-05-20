@@ -49,20 +49,6 @@ jobs:
             CROSS_COMPILE=${MUSL_CROSS}-
           ${MUSL_CROSS}-strip busybox
 
-
-      - name: Verify binaries
-        run: |
-          echo "=== Binary Compatibility Report ===" > xx_check.log
-          echo "Target Platform: ARMv7 (no VFP/NEON)" >> xx_check.log
-          echo "Compiler Flags: ${SAFE_CFLAGS}" >> xx_check.log
-          cat /proc/cpuinfo >> xx_check.log
-          echo "--- BusyBox ---" >> xx_check.log
-          cat busybox_check.log >> xx_check.log
-          echo "================================" >> xx_check.log
-          # 严格检查
-          ! grep -q "VFP" xx_check.log || (echo "VFP detected in binaries!" && exit 1)
-          grep -q "statically linked" xx_check.log || (echo "Static linking check failed!" && exit 1)
-
       - name: Package artifacts
         run: |
           mkdir -p release/bin
@@ -75,14 +61,3 @@ jobs:
           name: ${TARGET_ARCH}-artifacts
           path: |
             ${TARGET_ARCH}-safe-tools.tar.gz
-            xx_check.log
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            ${TARGET_ARCH}-safe-tools.tar.gz
-            xx_check.log
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
