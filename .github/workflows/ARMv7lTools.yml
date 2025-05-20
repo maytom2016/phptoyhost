@@ -8,8 +8,8 @@ on:
 
 env:
   TARGET_ARCH: armv7l
-  MUSL_CROSS: arm-linux-musleabihf
-  SAFE_CFLAGS: "-march=armv7-a -mno-unaligned-access -mfloat-abi=soft -mtune=generic-armv7-a"
+  MUSL_CROSS: arm-linux-musleabi  
+  SAFE_CFLAGS: "-march=armv5te -mno-unaligned-access -msoft-float -mfloat-abi=soft -mtune=generic-armv7-a -D__SOFTFP__ -nostdlib"
 
 jobs:
   build:
