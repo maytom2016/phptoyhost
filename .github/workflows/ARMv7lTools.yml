@@ -55,26 +55,48 @@ jobs:
           tar -xf dropbear-2022.83.tar.bz2
           cd dropbear-2022.83
           
-          # 应用源码补丁
+          # 修复1：应用综合补丁
           sed -i 's/char \*basename(const char\* path);/char *basename(char *path) __attribute__((__nonnull__ (1)));/g' compat.h
           sed -i 's/#if DROPBEAR_SVR_PASSWORD_AUTH && !HAVE_CRYPT/#if 0/' sysoptions.h
-
-          # 配置参数调整
+          
+          # 修复2：强制禁用共享库和动态链接
+          export CC="${MUSL_CROSS}-gcc"
+          export CFLAGS="${SAFE_CFLAGS} -static -ffunction-sections -fdata-sections"
+          export LDFLAGS="-static -Wl,--gc-sections -Wl,--as-needed -Wl,--strip-all"
+          
+          # 修复3：完整配置参数
           ./configure \
             --host=${MUSL_CROSS} \
             --enable-static \
+            --disable-shared \
             --disable-zlib \
             --disable-pam \
             --disable-syslog \
+            --disable-lastlog \
+            --disable-utmp \
+            --disable-utmpx \
+            --disable-wtmp \
+            --disable-wtmpx \
+            --disable-shadow \
             --disable-password-auth \
-            CFLAGS="${SAFE_CFLAGS} -static -DHAVE_CRYPT=0 -DBASENAME_COMPAT" \
-            LDFLAGS="-static -Wl,--as-needed"
+            --disable-openpty \
+            --disable-loginfunc \
+            --disable-pututline \
+            --disable-pututxline
 
-          # 强制指定编译工具
+          # 修复4：强制重建并显示详细日志
+          make clean
           make -j$(nproc) \
             PROGRAMS="dropbear dbclient dropbearkey" \
-            CC="${MUSL_CROSS}-gcc" \
-            STRIP="${MUSL_CROSS}-strip"
+            CC="$CC" \
+            CFLAGS="$CFLAGS" \
+            LDFLAGS="$LDFLAGS" \
+            STRIP="${MUSL_CROSS}-strip" \
+            V=1  # 启用详细输出
+
+          # 严格验证
+          ${MUSL_CROSS}-readelf -A dropbear | grep -q 'Tag_VFP_arch: None' || (echo "VFP detected"; exit 1)
+          ! ${MUSL_CROSS}-nm dropbear | grep -qw 'crypt' || (echo "Unexpected crypt dependency"; exit 1)
 
       - name: Verify binaries
         run: |
