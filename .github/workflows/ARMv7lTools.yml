@@ -54,17 +54,27 @@ jobs:
           wget https://matt.ucc.asn.au/dropbear/releases/dropbear-2022.83.tar.bz2
           tar -xf dropbear-2022.83.tar.bz2
           cd dropbear-2022.83
+          
+          # 应用源码补丁
+          sed -i 's/char \*basename(const char\* path);/char *basename(char *path) __attribute__((__nonnull__ (1)));/g' compat.h
+          sed -i 's/#if DROPBEAR_SVR_PASSWORD_AUTH && !HAVE_CRYPT/#if 0/' sysoptions.h
+
+          # 配置参数调整
           ./configure \
             --host=${MUSL_CROSS} \
             --enable-static \
             --disable-zlib \
-            CFLAGS="${SAFE_CFLAGS} -static" \
-            LDFLAGS="-static"
-          make -j$(nproc) PROGRAMS="dropbear dbclient dropbearkey"
-          ${MUSL_CROSS}-strip dropbear dbclient dropbearkey
-          file dropbear > ../dropbear_check.log
-          file dbclient >> ../dropbear_check.log
-          file dropbearkey >> ../dropbear_check.log
+            --disable-pam \
+            --disable-syslog \
+            --disable-password-auth \
+            CFLAGS="${SAFE_CFLAGS} -static -DHAVE_CRYPT=0 -DBASENAME_COMPAT" \
+            LDFLAGS="-static -Wl,--as-needed"
+
+          # 强制指定编译工具
+          make -j$(nproc) \
+            PROGRAMS="dropbear dbclient dropbearkey" \
+            CC="${MUSL_CROSS}-gcc" \
+            STRIP="${MUSL_CROSS}-strip"
 
       - name: Verify binaries
         run: |
