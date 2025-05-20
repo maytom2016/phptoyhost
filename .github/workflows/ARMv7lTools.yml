@@ -3,8 +3,8 @@ name: Build Static ARMv7l Tools (musl)
 on:
   push:
     tags:
-      - 'v*'  # 触发条件：推送 tag（如 v1.0.0）
-  workflow_dispatch:  # 允许手动触发
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -44,12 +44,14 @@ jobs:
           make -j$(nproc) PROGRAMS="dropbear dbclient dropbearkey"
           arm-linux-musleabihf-strip dropbear dbclient dropbearkey
 
-      - name: Build Netcat (OpenBSD variant)
+      - name: Build GNU Netcat (Linux原生版本)
         run: |
-          git clone https://github.com/openbsd/src.git
-          cd src/usr.bin/nc
-          make CC="arm-linux-musleabihf-gcc" CFLAGS="-static" LDFLAGS="-static"
-          arm-linux-musleabihf-strip nc
+          git clone https://github.com/dcantrell/nc.git
+          cd nc
+          ./autogen.sh
+          ./configure --host=arm-linux-musleabihf --enable-static --disable-shared
+          make -j$(nproc)
+          arm-linux-musleabihf-strip src/nc
 
       - name: Package binaries
         run: |
@@ -58,7 +60,7 @@ jobs:
           cp dropbear-2022.83/dropbear release/bin/
           cp dropbear-2022.83/dbclient release/bin/
           cp dropbear-2022.83/dropbearkey release/bin/
-          cp src/usr.bin/nc/nc release/bin/
+          cp nc/src/nc release/bin/
           tar -czvf armv7l-static-tools.tar.gz -C release .
 
       - name: Upload Release
