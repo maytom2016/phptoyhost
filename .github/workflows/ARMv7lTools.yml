@@ -45,7 +45,7 @@ jobs:
             CXX="arm-linux-musleabihf-g++" \
             CFLAGS="-static -Os" \
             LDFLAGS="-static"
-          # 仅编译 Ncat
+          # 编译 Ncat
           make -j$(nproc) ncat
           arm-linux-musleabihf-strip ncat/ncat
 
