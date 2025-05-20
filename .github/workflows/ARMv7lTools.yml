@@ -17,7 +17,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential musl-tools git wget
+          sudo apt install -y build-essential musl-tools git wget libncurses-dev
 
       - name: Set up cross compiler
         run: |
@@ -30,8 +30,8 @@ jobs:
           git clone https://git.busybox.net/busybox
           cd busybox
           make defconfig
+          echo -e "CONFIG_STATIC=y\nCONFIG_EXTRA_CFLAGS=-static\nCONFIG_EXTRA_LDFLAGS=-static\nCONFIG_EXTRA_LDLIBS=-static" >> .config
           make oldconfig
-          sed -i 's/^CONFIG_STATIC[^=]*=.*/CONFIG_STATIC=y/' .config
           make ARCH=arm CROSS_COMPILE=arm-linux-musleabi- -j$(nproc)
           cp busybox ../busybox-armv7
 
@@ -39,7 +39,7 @@ jobs:
         run: |
           git clone https://github.com/mkj/dropbear
           cd dropbear
-          ./configure --host=arm-linux-musleabi --enable-static
+          ./configure --host=arm-linux-musleabi --disable-zlib --enable-static
           make PROGRAMS="dropbear dbclient dropbearkey dropbearconvert scp" -j$(nproc)
           cp dropbear ../dropbear-armv7
 
