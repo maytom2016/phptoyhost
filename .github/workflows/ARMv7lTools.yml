@@ -1,120 +1,51 @@
-name: Build Static ARMv7l Tools (No-VFP)
+name: Build for ARMv7 Musl
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-
-env:
-  TARGET_ARCH: armv7l
-  MUSL_CROSS: arm-linux-musleabihf
-  SAFE_FLAGS: "-march=armv7-a -marm -mno-unaligned-access -mfloat-abi=soft -mfpu=softvfp -mtune=generic-armv7-a -fno-unwind-tables -fno-asynchronous-unwind-tables"
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Setup environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools file binutils
-          wget https://musl.cc/${MUSL_CROSS}-cross.tgz
-          tar -xzf ${MUSL_CROSS}-cross.tgz -C /opt
-          echo "/opt/${MUSL_CROSS}-cross/bin" >> $GITHUB_PATH
-          echo "SAFE_FLAGS=${SAFE_FLAGS}" >> $GITHUB_ENV
+    - name: Set up environment
+      run: |
+        sudo apt-get update && sudo apt-get install -y \
+          make gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+          libncurses-dev libssl-dev
 
-      - name: Build BusyBox (绝对安全模式)
-        run: |
-          wget https://busybox.net/downloads/busybox-1.36.1.tar.bz2
-          tar -xf busybox-1.36.1.tar.bz2
-          cd busybox-1.36.1
-          
-          # 彻底禁用所有可能产生VFP的代码路径
-          make allnoconfig
-          for opt in STATIC FEATURE_USE_INITTAB FEATURE_SEAMLESS_BZ2; do
-            sed -i "s/^# CONFIG_${opt} is not set/CONFIG_${opt}=y/" .config
-          done
-          
-          # 强制编译器设置
-          echo "CONFIG_EXTRA_CFLAGS=\"${SAFE_FLAGS} -U__ARM_FP\"" >> .config
-          echo "CONFIG_EXTRA_LDLIBS=\"-lgcc_eh -lgcc\"" >> .config
-          
-          # 修复行编辑模块的VFP问题
-          sed -i 's/^CONFIG_FEATURE_EDITING=.*/CONFIG_FEATURE_EDITING=n/' .config
-          
-          make -j$(nproc) \
-            CC="${MUSL_CROSS}-gcc ${SAFE_FLAGS}" \
-            ARCH=arm \
-            CROSS_COMPILE=${MUSL_CROSS}- \
-            SKIP_STRIP=y
-          
-          # 二进制验证
-          ${MUSL_CROSS}-strip busybox
-          file busybox > ../busybox_check.log
-          ! ${MUSL_CROSS}-readelf -A busybox | grep -q "VFP" || (echo "VFP指令检测失败!"; exit 1)
+    - name: Get BusyBox source
+      run: git clone https://git.busybox.net/busybox busybox
 
-      - name: Build Dropbear (安全模式)
-        run: |
-          wget https://matt.ucc.asn.au/dropbear/releases/dropbear-2020.81.tar.bz2  # 使用更旧更稳定的版本
-          tar -xf dropbear-2020.81.tar.bz2
-          cd dropbear-2020.81
-          
-          # 完全静态且无优化风险
-          ./configure \
-            --host=${MUSL_CROSS} \
-            --enable-static \
-            --disable-zlib \
-            --disable-largefile \
-            CFLAGS="${SAFE_FLAGS} -static -Os -fno-stack-protector" \
-            LDFLAGS="-static -Wl,--gc-sections"
-            
-          make -j$(nproc) PROGRAMS="dropbear dbclient dropbearkey"
-          ${MUSL_CROSS}-strip dropbear dbclient dropbearkey
-          
-          # 架构验证
-          file dropbear > ../dropbear_check.log
-          file dbclient >> ../dropbear_check.log
-          file dropbearkey >> ../dropbear_check.log
+    - name: Build BusyBox
+      working-directory: busybox
+      run: |
+        sed -i 's/^# CONFIG_STATIC is not set/CONFIG_STATIC=y/' .config
+        make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- defconfig
+        make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf-
 
-      - name: 终极验证
-        run: |
-          echo "=== 二进制兼容性终极验证 ===" > xx_check.log
-          echo "目标平台: $(uname -m)" >> xx_check.log
-          echo "编译标志: ${SAFE_FLAGS}" >> xx_check.log
-          
-          # 严格检查所有二进制
-          for bin in busybox-1.36.1/busybox dropbear-2020.81/{dropbear,dbclient,dropbearkey}; do
-            echo "--- $(basename $bin) ---" >> xx_check.log
-            file $bin >> xx_check.log
-            ${MUSL_CROSS}-readelf -A $bin | grep -q "Tag_ARM_ISA_use: Yes" || \
-              (echo "ARM指令集验证失败: $bin"; exit 1)
-            ! ${MUSL_CROSS}-objdump -d $bin | grep -q "vpush" || \
-              (echo "检测到VFP指令: $bin"; exit 1)
-          done
-          
-          echo "所有二进制验证通过!" >> xx_check.log
+    - name: Get dropbear source
+      run: git clone https://github.com/mkj/dropbear.git dropbear
 
-      - name: 打包发布
-        run: |
-          mkdir -p release/{bin,logs}
-          cp busybox-1.36.1/busybox release/bin/
-          cp dropbear-2020.81/{dropbear,dbclient,dropbearkey} release/bin/
-          cp *.log release/logs/
-          
-          # 生成SHA256校验
-          (cd release/bin && sha256sum * > ../logs/sha256sums)
-          
-          tar -czvf ${TARGET_ARCH}-ultra-safe-tools.tar.gz -C release .
+    - name: Build dropbear
+      working-directory: dropbear
+      run: |
+        ./configure --host=arm-linux-gnueabihf --disable-zlib --disable-pam --disable-shadow --disable-syslog
+        make PROGRAMS="dropbear dbclient scp" MULTI=1 CROSS_COMPILE=arm-linux-gnueabihf-
 
-      - name: 上传制品
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${TARGET_ARCH}-ultra-safe
-          path: |
-            ${TARGET_ARCH}-ultra-safe-tools.tar.gz
-            xx_check.log
+    - name: Package binaries
+      run: |
+        tar czf armv7-musl-busybox-dropbear.tar.gz busybox/dropbear/dropbear busybox/dropbear/dbclient busybox/dropbear/scp busybox/busybox
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: armv7-musl-busybox-dropbear
+        path: armv7-musl-busybox-dropbear.tar.gz
