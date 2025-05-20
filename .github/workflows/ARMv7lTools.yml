@@ -60,4 +60,4 @@ jobs:
         with:
           name: ${TARGET_ARCH}-artifacts
           path: |
-            ${TARGET_ARCH}-safe-tools.tar.gz
+            release
