@@ -30,6 +30,7 @@ jobs:
           git clone https://git.busybox.net/busybox
           cd busybox
           make defconfig
+          make oldconfig
           sed -i 's/^CONFIG_STATIC[^=]*=.*/CONFIG_STATIC=y/' .config
           make ARCH=arm CROSS_COMPILE=arm-linux-musleabi- -j$(nproc)
           cp busybox ../busybox-armv7
