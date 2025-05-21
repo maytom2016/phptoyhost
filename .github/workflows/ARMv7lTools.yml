@@ -29,6 +29,7 @@ jobs:
         run: |
           git clone https://github.com/mirror/busybox.git
           cd busybox
+          git checkout remotes/origin/1_36_stable
           make defconfig
           sed -i 's/^CONFIG_STATIC[^=]*=.*/CONFIG_STATIC=y/' .config
           sed -i 's/^CONFIG_PIE[^=]*=.*/# CONFIG_PIE is not set/' .config
