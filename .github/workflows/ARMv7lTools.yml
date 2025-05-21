@@ -33,7 +33,7 @@ jobs:
           sed -i 's/^CONFIG_STATIC[^=]*=.*/CONFIG_STATIC=y/' .config
           sed -i 's/^CONFIG_PIE[^=]*=.*/# CONFIG_PIE is not set/' .config  # 取消 PIE
           echo -e "CONFIG_EXTRA_CFLAGS=-static\nCONFIG_EXTRA_LDFLAGS=-static\nCONFIG_EXTRA_LDLIBS=-static" >> .config
-          make oldconfig
+          yes '' | make oldconfig  # 自动接受所有默认选项
           make ARCH=arm CROSS_COMPILE=arm-linux-musleabi- -j$(nproc)
           cp busybox ../busybox-armv7
 
